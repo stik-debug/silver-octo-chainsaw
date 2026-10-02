@@ -1,0 +1,292 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CUSTOMER
+  PROVIDER
+  ADMIN
+}
+enum ProviderStatus {
+  REGISTERED
+  PROFILE_COMPLETED
+  DOCUMENTS_SUBMITTED
+  VERIFICATION_PENDING
+  VERIFIED
+  ACTIVE
+  SUSPENDED
+}
+enum VerificationStatus {
+  NOT_STARTED
+  PENDING
+  UNDER_REVIEW
+  VERIFIED
+  REJECTED
+  EXPIRED
+  SUSPENDED
+}
+enum BookingStatus {
+  REQUESTED
+  ACCEPTED
+  DECLINED
+  QUOTED
+  QUOTE_ACCEPTED
+  PAYMENT_PENDING
+  PAID
+  SCHEDULED
+  PROVIDER_ARRIVED
+  IN_PROGRESS
+  COMPLETED
+  CONFIRMED
+  CANCELLED
+  DISPUTED
+}
+enum PaymentStatus {
+  INITIATED
+  PENDING
+  CONFIRMED
+  FAILED
+  TIMEOUT
+  REVERSED
+}
+enum LedgerType {
+  CUSTOMER_PAYMENT
+  PLATFORM_FEE
+  PROVIDER_EARNING
+  PROVIDER_PAYOUT
+  REFUND
+}
+
+model User {
+  id String @id @default(cuid())
+  phone String @unique
+  name String?
+  role Role @default(CUSTOMER)
+  photoKey String?
+  area String?
+  termsAcceptedAt DateTime?
+  privacyConsentAt DateTime?
+  mfaSecret String?
+  mfaEnabled Boolean @default(false)
+  createdAt DateTime @default(now())
+  deletedAt DateTime?
+  provider ProviderProfile?
+  sessions Session[]
+  customerBookings Booking[] @relation("customer")
+  sent Message[] @relation("sender")
+  received Message[] @relation("recipient")
+  notifications Notification[]
+}
+model OtpCode {
+  id String @id @default(cuid())
+  phone String
+  codeHash String
+  attempts Int @default(0)
+  expiresAt DateTime
+  consumedAt DateTime?
+  createdAt DateTime @default(now())
+  @@index([phone, createdAt])
+}
+model Session {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id])
+  refreshHash String @unique
+  device String?
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+}
+model ServiceCategory {
+  id String @id @default(cuid())
+  slug String @unique
+  name String
+  services ProviderService[]
+}
+model ProviderProfile {
+  id String @id @default(cuid())
+  userId String @unique
+  user User @relation(fields: [userId], references: [id])
+  legalName String
+  bio String?
+  experienceYears Int @default(0)
+  status ProviderStatus @default(REGISTERED)
+  verification VerificationStatus @default(NOT_STARTED)
+  verifiedAt DateTime?
+  payoutPhone String?
+  available Boolean @default(false)
+  lat Float?
+  lng Float?
+  serviceRadiusKm Float @default(5)
+  services ProviderService[]
+  documents ProviderDocument[]
+  verifications VerificationRecord[]
+  bookings Booking[]
+  reviews Review[]
+  payouts ProviderPayout[]
+  @@index([status, verification])
+}
+model ProviderService {
+  id String @id @default(cuid())
+  providerId String
+  provider ProviderProfile @relation(fields: [providerId], references: [id])
+  categoryId String
+  category ServiceCategory @relation(fields: [categoryId], references: [id])
+  baseRateKes Int?
+  @@unique([providerId, categoryId])
+}
+model ProviderDocument {
+  id String @id @default(cuid())
+  providerId String
+  provider ProviderProfile @relation(fields: [providerId], references: [id])
+  kind String
+  storageKey String
+  createdAt DateTime @default(now())
+}
+model VerificationRecord {
+  id String @id @default(cuid())
+  providerId String
+  provider ProviderProfile @relation(fields: [providerId], references: [id])
+  status VerificationStatus
+  reviewerId String?
+  note String?
+  createdAt DateTime @default(now())
+}
+model Booking {
+  id String @id @default(cuid())
+  customerId String
+  customer User @relation("customer", fields: [customerId], references: [id])
+  providerId String
+  provider ProviderProfile @relation(fields: [providerId], references: [id])
+  categoryId String
+  description String
+  address String?
+  lat Float?
+  lng Float?
+  status BookingStatus @default(REQUESTED)
+  quoteKes Int?
+  quoteNote String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  history BookingEvent[]
+  payments Payment[]
+  messages Message[]
+  review Review?
+}
+model BookingEvent {
+  id String @id @default(cuid())
+  bookingId String
+  booking Booking @relation(fields: [bookingId], references: [id])
+  fromStatus BookingStatus?
+  toStatus BookingStatus
+  actorId String?
+  createdAt DateTime @default(now())
+}
+model Payment {
+  id String @id @default(cuid())
+  bookingId String
+  booking Booking @relation(fields: [bookingId], references: [id])
+  amountKes Int
+  phone String
+  status PaymentStatus @default(INITIATED)
+  checkoutRequestId String? @unique
+  merchantRequestId String?
+  mpesaReceipt String? @unique
+  failureReason String?
+  createdAt DateTime @default(now())
+  events PaymentEvent[]
+  ledger LedgerEntry[]
+}
+model PaymentEvent {
+  id String @id @default(cuid())
+  paymentId String?
+  payment Payment? @relation(fields: [paymentId], references: [id])
+  source String
+  payload Json
+  createdAt DateTime @default(now())
+}
+model LedgerEntry {
+  id String @id @default(cuid())
+  type LedgerType
+  paymentId String?
+  payment Payment? @relation(fields: [paymentId], references: [id])
+  providerId String?
+  bookingId String?
+  amountKes Int
+  createdAt DateTime @default(now())
+  @@unique([paymentId, type])
+  @@index([providerId])
+}
+model ProviderPayout {
+  id String @id @default(cuid())
+  providerId String
+  provider ProviderProfile @relation(fields: [providerId], references: [id])
+  amountKes Int
+  status String @default("PENDING")
+  mpesaConversationId String?
+  createdAt DateTime @default(now())
+}
+model Message {
+  id String @id @default(cuid())
+  bookingId String
+  booking Booking @relation(fields: [bookingId], references: [id])
+  senderId String
+  sender User @relation("sender", fields: [senderId], references: [id])
+  recipientId String
+  recipient User @relation("recipient", fields: [recipientId], references: [id])
+  body String
+  status String @default("SENT")
+  readAt DateTime?
+  createdAt DateTime @default(now())
+}
+model Notification {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id])
+  kind String
+  body String
+  readAt DateTime?
+  createdAt DateTime @default(now())
+}
+model Review {
+  id String @id @default(cuid())
+  bookingId String @unique
+  booking Booking @relation(fields: [bookingId], references: [id])
+  customerId String
+  providerId String
+  provider ProviderProfile @relation(fields: [providerId], references: [id])
+  rating Int
+  text String?
+  createdAt DateTime @default(now())
+}
+model AuditLog {
+  id String @id @default(cuid())
+  actorId String?
+  action String
+  entity String?
+  entityId String?
+  meta Json?
+  createdAt DateTime @default(now())
+}
+
+model SupportTicket {
+  id String @id @default(cuid())
+  userId String
+  subject String
+  body String
+  status String @default("OPEN")
+  createdAt DateTime @default(now())
+}
+model Dispute {
+  id String @id @default(cuid())
+  bookingId String
+  openedById String
+  reason String
+  status String @default("OPEN")
+  resolution String?
+  createdAt DateTime @default(now())
+}
