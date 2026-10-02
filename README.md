@@ -7,7 +7,7 @@ Node 20+, Express, TypeScript, PostgreSQL + Prisma, Africa's Talking (SMS OTP), 
 
 ## Setup
 1. `cp .env.example .env` and fill it in. `npm install`
-2. `npx prisma migrate dev --name init` (dev) / `npx prisma migrate deploy` (prod)
+2. `npx prisma db push` (dev). In production `npm start` runs `prisma db push` automatically, so it works on both new and existing databases (fixes Prisma P3005). `db push` refuses destructive changes unless `--accept-data-loss` is passed.
 3. `npm run seed:dev` — inserts ONLY service categories (system config).
 4. First admin: set `ADMIN_PHONE`, `ADMIN_NAME`, run `npm run create-admin` once. Log in via real OTP. Production blocks admin login until MFA is enrolled (MFA enrolment endpoint: TODO).
 5. `npm run dev` or `npm run build && npm start`.
@@ -35,7 +35,7 @@ Quote accepted -> `POST /api/payments/bookings/:id/pay` -> STK push -> `PENDING`
 - **CI / tests**: `npm test` (config safety tests), `npm run typecheck`; GitHub Actions in `.github/workflows/ci.yml`.
 
 ## First run checklist
-`npm install && npx prisma generate && npx prisma migrate dev --name init && npm run typecheck && npm test`
+`npm install && npx prisma generate && npx prisma db push && npm run typecheck && npm test`
 
 ## Testing
 - `npm test` runs config-safety tests always, and **integration tests against real Postgres** when `RUN_DB_TESTS=1` and `DATABASE_URL` contains "test" (the suite truncates tables, so it refuses any other database). CI runs them against a Postgres service container.
