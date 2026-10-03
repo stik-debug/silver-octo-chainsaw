@@ -7,7 +7,7 @@ Node 20+, Express, TypeScript, PostgreSQL + Prisma, Africa's Talking (SMS OTP), 
 
 ## Setup
 1. `cp .env.example .env` and fill it in. `npm install`
-2. `npx prisma db push` (dev). In production `npm start` runs `prisma db push` automatically, so it works on both new and existing databases (fixes Prisma P3005). `db push` refuses destructive changes unless `--accept-data-loss` is passed.
+2. `npx prisma db push` (dev). In production `npm start` runs `prisma db push` automatically, so it works on both new and existing databases (fixes Prisma P3005). `start` uses `--accept-data-loss`, so schema changes that remove columns/tables will apply without prompting. Remove that flag from the `start` script once you hold real data.
 3. `npm run seed:dev` — inserts ONLY service categories (system config).
 4. First admin: set `ADMIN_PHONE`, `ADMIN_NAME`, run `npm run create-admin` once. Log in via real OTP. Production blocks admin login until MFA is enrolled (MFA enrolment endpoint: TODO).
 5. `npm run dev` or `npm run build && npm start`.
